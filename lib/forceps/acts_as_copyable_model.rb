@@ -2,7 +2,9 @@ module Forceps
   module ActsAsCopyableModel
     extend ActiveSupport::Concern
 
-    def copy_to_local
+    def copy_to_local(opt={})
+      opt[:not_update_if_exist] ||= false
+      @options=opt
       without_record_timestamps do
         DeepCopier.new(forceps_options).copy(self)
       end
@@ -70,7 +72,8 @@ module Forceps
       def find_or_clone_local_copy_with_simple_attributes(remote_object)
         found_local_object = finder_for_remote_object(remote_object).call(remote_object)
         if found_local_object
-          copy_simple_attributes(found_local_object, remote_object)
+          p "I've found model #{found_local_object.class} #{found_local_object.id} and respect its data. Not updating" if @options[:not_update_if_exist]
+          copy_simple_attributes(found_local_object, remote_object) unless @options[:not_update_if_exist]
           reused_local_objects << found_local_object
           found_local_object
         else
@@ -100,13 +103,11 @@ module Forceps
       end
 
       def create_local_copy_with_simple_attributes(remote_object)
-        debug "#{as_trace(remote_object)} copying..."
-
         base_class = base_local_class_for(remote_object)
 
         disable_all_callbacks_for(base_class)
 
-        cloned_object = base_class.new
+        cloned_object = base_class.new(:entitycode => S3i_Domain.current_domain.code)
         copy_attributes(cloned_object, simple_attributes_to_copy(remote_object))
         cloned_object.save!(validate: false)
         invoke_callbacks(:after_each, cloned_object, remote_object)

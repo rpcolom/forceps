@@ -1,0 +1,18 @@
+rvm use 2.1.5@forceps --create
+
+VERSIONBRANCH="r215_r4108"; export VERSIONBRANCH
+DEVELOPMENTBRANCH="$USERBRANCH"_"$VERSIONBRANCH"; export DEVELOPMENTBRANCH
+#alias backup="$HOME/bin/fi4softcmd pasarela gitonbackup forceps"
+#alias gitonmaster="./script/generatemaster.sh"
+alias fi4issue_destroy="$HOME/bin/fi4softcmd git fi4issue_destroy"
+alias fi4issue_create="$HOME/bin/fi4softcmd git fi4issue_create"
+alias fi4issue_close="$HOME/bin/fi4softcmd git fi4issue_close"
+alias fi4issue_finish="$HOME/bin/fi4softcmd git fi4issue_finish"
+alias fi4issue_merge="$HOME/bin/fi4softcmd git fi4issue_merge"
+alias zclosed_delete="$HOME/bin/fi4softcmd git branch_delete"
+alias branch_delete="$HOME/bin/fi4softcmd git branch_delete_force"
+
+echo "loaded backup, fi4issue_create, fi4issue_close, fi4issue_finish commands"
+git status
+
+

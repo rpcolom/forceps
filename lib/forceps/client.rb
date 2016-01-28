@@ -1,9 +1,13 @@
 module Forceps
   class Client
     attr_reader :options
+    cattr_accessor :options_class
 
     def configure(options={})
       @options = options.merge(default_options)
+      Forceps::Client.options_class=@options
+      @model_classes=nil
+      @remote_classes_defined =  nil
 
       declare_remote_model_classes
       make_associations_reference_remote_classes
@@ -11,7 +15,38 @@ module Forceps
       logger.debug "Classes handled by Forceps: #{model_classes.collect(&:name).inspect}"
     end
 
+    def master_domain
+      @options[:master]
+    end
+
+    def self.master_domain
+      options_class[:master]
+    end
+
+    def master_code
+      S3i_Domain.domain(master_domain).code
+    end
+    
+    def self.master_code
+      S3i_Domain.domain(master_domain).code
+    end
+    
     private
+
+    def connection_to_master
+      p "****** connecting #{self} to Master #{master_domain}"
+      domain=S3i_Domain.domain(master_domain)
+
+      db_user=S3i_entity.db_user_root
+      db_password=S3i_Domain.user_password(domain, db_user)
+      new_connection=domain.connectionstr.merge({
+          "username" => db_user, 
+          "password" => db_password,
+          :username => db_user, 
+          :password => db_password})
+
+      new_connection
+    end
 
     def logger
       Forceps.logger
@@ -26,14 +61,12 @@ module Forceps
     end
 
     def filtered_model_classes
-      (ActiveRecord::Base.descendants - model_classes_to_exclude).reject do |klass|
-        klass.name.start_with?('HABTM_')
-      end
+      @options[:models].collect{|x| x.camelize.constantize}
     end
 
     def model_classes_to_exclude
       if Rails::VERSION::MAJOR >= 4
-        [ActiveRecord::SchemaMigration]
+        [ActiveRecord::SchemaMigration, ]
       else
         []
       end
@@ -61,7 +94,8 @@ module Forceps
       end
       head.const_set(class_name, build_new_remote_class(klass))
 
-      remote_class_for(full_class_name).establish_connection :remote
+      #p "Remote connection to #{connection_to_master}"
+      remote_class_for(full_class_name).establish_connection connection_to_master #:remote
     end
 
     def build_new_remote_class(local_class)
@@ -70,7 +104,17 @@ module Forceps
         self.table_name = local_class.table_name
 
         include Forceps::ActsAsCopyableModel
+#        include Sinai::S3iRemoteModels
+        default_scope lambda { where(:entitycode => self.master_code) }
 
+        # def self.master_domain
+        #   S3i_Domain.domain(master_domain).code #{}"am000"
+        # end
+
+        def self.master_code
+          Forceps::Client.master_code
+        end
+        
         # Intercept instantiation of records to make the 'type' column point to the corresponding remote class
         if Rails::VERSION::MAJOR >= 4
           def self.instantiate(record, column_types = {})
